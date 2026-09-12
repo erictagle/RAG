@@ -10,7 +10,6 @@ from openai import OpenAI
 APP_DIR = Path(__file__).resolve().parent
 load_dotenv(APP_DIR / ".env")
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ABOUT_ME_CANDIDATES = (APP_DIR / "about_myself.txt", APP_DIR / "about_me.txt")
 ABOUT_ME_PATH = next((path for path in ABOUT_ME_CANDIDATES if path.exists()), ABOUT_ME_CANDIDATES[0])
 EMBEDDING_MODEL = "text-embedding-3-small"
@@ -222,6 +221,20 @@ def default_messages() -> list[dict]:
     return [{"role": "assistant", "content": WELCOME_MESSAGE, "sources": []}]
 
 
+def get_openai_api_key() -> str | None:
+    try:
+        secret_key = st.secrets.get("OPENAI_API_KEY")
+        if secret_key and str(secret_key).strip():
+            return str(secret_key).strip()
+    except Exception:
+        pass
+
+    env_key = os.getenv("OPENAI_API_KEY")
+    if env_key and env_key.strip():
+        return env_key.strip()
+    return None
+
+
 def handle_user_prompt(prompt: str, client: OpenAI | None) -> None:
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
@@ -263,13 +276,14 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+OPENAI_API_KEY = get_openai_api_key()
 client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 about_me_exists = ABOUT_ME_PATH.exists()
 
 if not OPENAI_API_KEY:
     st.error(
-        "OPENAI_API_KEY is missing. Add it to a `.env` file in this folder "
-        "(OPENAI_API_KEY=your-key), then refresh the app."
+        "OPENAI_API_KEY is missing. Add it to Streamlit secrets "
+        "as `OPENAI_API_KEY`, or to a `.env` file in this folder, then refresh the app."
     )
 
 if not about_me_exists:
