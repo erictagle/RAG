@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import streamlit as st
 from dotenv import load_dotenv
-from openai import OpenAI
+from openai import AuthenticationError, OpenAI
 
 APP_DIR = Path(__file__).resolve().parent
 load_dotenv(APP_DIR / ".env")
@@ -244,14 +244,20 @@ def handle_user_prompt(prompt: str, client: OpenAI | None) -> None:
     if not client or not st.session_state.embeddings:
         response = "I can’t answer yet because the knowledge base is not indexed."
     else:
-        with st.spinner("Thinking..."):
-            query_embedding = embed_query(client, prompt)
-            sources = top_k_chunks(
-                query_embedding,
-                st.session_state.embeddings,
-                st.session_state.chunks,
+        try:
+            with st.spinner("Thinking..."):
+                query_embedding = embed_query(client, prompt)
+                sources = top_k_chunks(
+                    query_embedding,
+                    st.session_state.embeddings,
+                    st.session_state.chunks,
+                )
+                response = answer_from_context(client, prompt, sources)
+        except AuthenticationError:
+            response = (
+                "The OpenAI API key is invalid or has been revoked. "
+                "Create a new key and update Streamlit secrets, then refresh the app."
             )
-            response = answer_from_context(client, prompt, sources)
 
     st.session_state.messages.append(
         {"role": "assistant", "content": response, "sources": sources}
@@ -305,6 +311,13 @@ if "chunks" not in st.session_state or "embeddings" not in st.session_state:
             st.error(
                 f"`{ABOUT_ME_PATH.name}` was not found. Place `about_myself.txt` "
                 "next to `rag_chatbot.py`, then refresh the app."
+            )
+        except AuthenticationError:
+            st.error(
+                "The OpenAI API key is invalid or has been revoked. "
+                "Create a new key at https://platform.openai.com/api-keys, "
+                "put it in `.streamlit/secrets.toml` as `OPENAI_API_KEY`, "
+                "then refresh the app."
             )
 
 if "messages" not in st.session_state:
